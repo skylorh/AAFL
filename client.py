@@ -15,92 +15,95 @@ import fl_utils
 import fl_models
 from fl_train_test import train, test
 import speed
+
 # import matplotlib.pyplot as plt
 
 
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
 parser.add_argument('--world_size', type=int, default=2, metavar='N',
-                        help='number of working devices (default: 2)')
+                    help='number of working devices (default: 2)')
 parser.add_argument('--rank', type=int, default=1, metavar='N',
-                        help='device index (default: 1)')
-parser.add_argument('--addr', type=str, default='192.168.0.100', metavar='N',
-                        help='master  ip address')
-parser.add_argument('--port', type=str, default='23333',metavar='N',
-                        help='port number')
+                    help='device index (default: 1)')
+parser.add_argument('--addr', type=str, default='127.0.0.1', metavar='N',
+                    help='master  ip address')
+parser.add_argument('--port', type=str, default='23333', metavar='N',
+                    help='port number')
 parser.add_argument('--enable_vm_test', action="store_true", default=True)
-parser.add_argument('--dataset_type', type=str, default='MNIST',metavar='N',
-                        help='dataset type, default: MNIST')
-parser.add_argument('--model_type', type=str, default='LR',metavar='N',
-                        help='model type, default: Linear Regression')
-parser.add_argument('--alpha', type=float, default=1.0,metavar='N',
-                        help='The value of alpha')
-parser.add_argument('--pattern_idx', type=int, default= 0, metavar='N',
-                        help='0: IID, 1: Low-Non-IID, 2: Mid-Non-IID, 3: High-Non-IID')
-parser.add_argument('--datanum_idx', type=int, default= 0, metavar='N',
-                        help='0: 6000, 1: 4,000-8,000, 2: 1,000-11,000')
+parser.add_argument('--dataset_type', type=str, default='MNIST', metavar='N',
+                    help='dataset type, default: MNIST')
+parser.add_argument('--model_type', type=str, default='LR', metavar='N',
+                    help='model type, default: Linear Regression')
+parser.add_argument('--alpha', type=float, default=1.0, metavar='N',
+                    help='The value of alpha')
+parser.add_argument('--pattern_idx', type=int, default=0, metavar='N',
+                    help='0: IID, 1: Low-Non-IID, 2: Mid-Non-IID, 3: High-Non-IID')
+parser.add_argument('--datanum_idx', type=int, default=0, metavar='N',
+                    help='0: 6000, 1: 4,000-8,000, 2: 1,000-11,000')
 parser.add_argument('--epoch_start', type=int, default=0,
                     help='')
 parser.add_argument('--batch_size', type=int, default=32, metavar='N',
-                        help='input batch size for training (default: 32)')
+                    help='input batch size for training (default: 32)')
 parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N',
-                        help='input batch size for testing (default: 1000)')
+                    help='input batch size for testing (default: 1000)')
 parser.add_argument('--local_iters', type=int, default=1, metavar='N',
-                        help='input local interval for training (default: 1)')
+                    help='input local interval for training (default: 1)')
 parser.add_argument('--epochs', type=int, default=10, metavar='N',
-                        help='number of epochs to train (default: 10)')
+                    help='number of epochs to train (default: 10)')
 parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-                        help='learning rate (default: 0.01)')
+                    help='learning rate (default: 0.01)')
 parser.add_argument('--momentum', type=float, default=0.5, metavar='M',
-                        help='SGD momentum (default: 0.5)')
+                    help='SGD momentum (default: 0.5)')
 parser.add_argument('--no_cuda', action='store_true', default=False,
-                        help='disables CUDA training')
+                    help='disables CUDA training')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
+                    help='random seed (default: 1)')
 parser.add_argument('--log_interval', type=int, default=10, metavar='N',
-                        help='how many batches to wait before logging training status')
+                    help='how many batches to wait before logging training status')
 parser.add_argument('--save_model', action='store_true', default=False,
-                        help='For Saving the current Model')
+                    help='For Saving the current Model')
 
 args = parser.parse_args()
 world_size = args.world_size
 rank = args.rank
 print("rank is: ", rank)
 dist.init_process_group(backend="gloo",
-                        init_method="tcp://"+args.addr+":"+args.port,
-                        world_size=world_size+1,
-                        rank=rank) 
+                        init_method="tcp://" + args.addr + ":" + args.port,
+                        world_size=world_size + 1,
+                        rank=rank)
 print("init success!")
 # # train_loss_plot = []
 # test_loss_plot = []
 # test_acc_plot = []
 
 # exit conditions
-exit_loss_threshold = 1.9 # loss threshold
-loss_interval = 10 # the mean of last loss_iterval loss is calculated
+exit_loss_threshold = 1.9  # loss threshold
+loss_interval = 10  # the mean of last loss_iterval loss is calculated
+
 
 def split_data(dataset):
     num_samples = len(dataset.data)
     temp_data = []
     temp_target = []
-    dataset.data=torch.div(dataset.data/255.0-0.1307, 0.3081)
+    dataset.data = torch.div(dataset.data / 255.0 - 0.1307, 0.3081)
     for i in range(num_samples):
-        if torch.randint(world_size, [1]) == rank-1:
-            temp_data .append( dataset.data[i,:,:])
+        if torch.randint(world_size, [1]) == rank - 1:
+            temp_data.append(dataset.data[i, :, :])
             temp_target.append(dataset.targets[i])
     return torch.utils.data.TensorDataset(torch.stack(temp_data), torch.stack(temp_target))
 
+
 def load_data():
-   global_train_dataset =  datasets.MNIST('./data', train=True, download=True,
-                transform=transforms.Compose([
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.1307,), (0.3081,))
-                ]))
-   global_test_dataset =  datasets.MNIST('./data', train=False, download=True,
-                transform=transforms.Compose([
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.1307,), (0.3081,))
-                ]))
-   return split_data(global_train_dataset), split_data(global_test_dataset)
+    global_train_dataset = datasets.MNIST('./data', train=True, download=False,
+                                          transform=transforms.Compose([
+                                              transforms.ToTensor(),
+                                              transforms.Normalize((0.1307,), (0.3081,))
+                                          ]))
+    global_test_dataset = datasets.MNIST('./data', train=False, download=False,
+                                         transform=transforms.Compose([
+                                             transforms.ToTensor(),
+                                             transforms.Normalize((0.1307,), (0.3081,))
+                                         ]))
+    return split_data(global_train_dataset), split_data(global_test_dataset)
 
 
 class Net(nn.Module):
@@ -110,6 +113,7 @@ class Net(nn.Module):
         self.conv2 = nn.Conv2d(20, 50, 5, 1)
         self.fc1 = nn.Linear(4 * 4 * 50, 500)
         self.fc2 = nn.Linear(500, 10)
+
     def forward(self, x):
         x = F.relu(self.conv1(x))
         x = F.max_pool2d(x, 2, 2)
@@ -119,6 +123,7 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
+
 
 # def train(args, model, device, train_loader, optimizer, epoch):
 #     model.train()
@@ -167,11 +172,12 @@ class Net(nn.Module):
 
 def apply_global_para(model, global_para):
     para_dict = model.state_dict()
-    keys=list(model.state_dict())
+    keys = list(model.state_dict())
     for i in range(len(keys)):
         para_dict.update({keys[i]: global_para[i]})
     model.load_state_dict(para_dict)
     del para_dict
+
 
 def main():
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -180,7 +186,7 @@ def main():
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     chunk_size = torch.tensor(0)
-    dist.recv(chunk_size, src = 0)
+    dist.recv(chunk_size, src=0)
     num_data = chunk_size.item()
 
     is_train = True
@@ -201,17 +207,26 @@ def main():
     MODEL_PATH = checkpoint_dir + 'model/'
     fl_utils.create_dir(MODEL_PATH)
 
-    LOAD_MODEL_PATH = MODEL_PATH + 'alpha_' + str(alpha) + '_model-type_' + args.model_type + '_dataset-type' + args.dataset_type + \
-        '_batch-size' + str(args.batch_size) + '_tx2nums' + str(args.world_size) + '_' + pattern_list[args.pattern_idx] + 'data-pattern' + \
-            datanum_list[args.datanum_idx] + 'data' + '_exit-loss' + str(exit_loss_threshold) + '_lr' + str(args.lr) + '_epoch' + str(args.epochs) + '_local' + str(args.local_iters) + '.pth'
+    LOAD_MODEL_PATH = MODEL_PATH + 'alpha_' + str(
+        alpha) + '_model-type_' + args.model_type + '_dataset-type' + args.dataset_type + \
+                      '_batch-size' + str(args.batch_size) + '_tx2nums' + str(args.world_size) + '_' + pattern_list[
+                          args.pattern_idx] + 'data-pattern' + \
+                      datanum_list[args.datanum_idx] + 'data' + '_exit-loss' + str(exit_loss_threshold) + '_lr' + str(
+        args.lr) + '_epoch' + str(args.epochs) + '_local' + str(args.local_iters) + '.pth'
 
-    SAVE_MODEL_PATH = MODEL_PATH + 'alpha_' + str(alpha) + '_model-type_' + args.model_type + '_dataset-type' + args.dataset_type + \
-        '_batch-size' + str(args.batch_size) + '_tx2nums' + str(args.world_size) + '_' + pattern_list[args.pattern_idx] + 'data-pattern' + \
-            datanum_list[args.datanum_idx] + 'data' + '_exit-loss' + str(exit_loss_threshold)  + '_lr' + str(args.lr) + '_epoch' + str(args.epochs) + '_local' + str(args.local_iters) + '.pth'
+    SAVE_MODEL_PATH = MODEL_PATH + 'alpha_' + str(
+        alpha) + '_model-type_' + args.model_type + '_dataset-type' + args.dataset_type + \
+                      '_batch-size' + str(args.batch_size) + '_tx2nums' + str(args.world_size) + '_' + pattern_list[
+                          args.pattern_idx] + 'data-pattern' + \
+                      datanum_list[args.datanum_idx] + 'data' + '_exit-loss' + str(exit_loss_threshold) + '_lr' + str(
+        args.lr) + '_epoch' + str(args.epochs) + '_local' + str(args.local_iters) + '.pth'
 
-    LOG_ROOT_PATH = checkpoint_dir +  'log/' + '/alpha_' + str(alpha) + '/model-type_' + args.model_type + '_dataset-type' + args.dataset_type + \
-        '_batch-size' + str(args.batch_size) + '_tx2nums' + str(args.world_size) + '_' + pattern_list[args.pattern_idx] + 'data-pattern' + \
-            datanum_list[args.datanum_idx] + 'data' + '_exit-loss' + str(exit_loss_threshold) + '_lr' + str(args.lr) + '_epoch' + str(args.epochs) + '_local' + str(args.local_iters) +'/'
+    LOG_ROOT_PATH = checkpoint_dir + 'log/' + '/alpha_' + str(
+        alpha) + '/model-type_' + args.model_type + '_dataset-type' + args.dataset_type + \
+                    '_batch-size' + str(args.batch_size) + '_tx2nums' + str(args.world_size) + '_' + pattern_list[
+                        args.pattern_idx] + 'data-pattern' + \
+                    datanum_list[args.datanum_idx] + 'data' + '_exit-loss' + str(exit_loss_threshold) + '_lr' + str(
+        args.lr) + '_epoch' + str(args.epochs) + '_local' + str(args.local_iters) + '/'
 
     fl_utils.create_dir(LOG_ROOT_PATH)
 
@@ -231,7 +246,6 @@ def main():
     train_dataset, test_dataset = fl_datasets.load_datasets(
         args.dataset_type)
 
-
     # train_dataset, test_dataset = load_data()
     # train_loader = torch.utils.data.DataLoader(train_dataset,
     #     batch_size=args.batch_size, shuffle=True, **kwargs)
@@ -240,17 +254,16 @@ def main():
     pattern_idx = args.pattern_idx
     datanum_idx = args.datanum_idx
 
-
-# <--Create federated train/test loaders for virtrual machines
+    # <--Create federated train/test loaders for virtrual machines
     if pattern_idx == 0:  # random data (IID)
-        if datanum_idx !=0: # imbalance data
+        if datanum_idx != 0:  # imbalance data
             is_train = True
             tx2_train_loader = fl_utils.create_random_loader(
                 args, kwargs, args.rank, num_data, is_train, train_dataset)
             is_train = False
             tx2_test_loader = fl_utils.create_random_loader(
                 args, kwargs, args.rank, num_data, is_train, test_dataset)
-        else:# balance data
+        else:  # balance data
             is_train = True
             tx2_train_loader = fl_utils.create_segment_loader(
                 args, kwargs, args.world_size, args.rank, is_train, train_dataset)
@@ -265,7 +278,7 @@ def main():
             label_clusters = ((0, 1), (2, 3), (4, 5), (6, 7), (8, 9))
         elif pattern_idx == 3:  # highbias
             label_clusters = ((0,), (1,), (2,), (3,), (4,),
-                            (5,), (6,), (7,), (8,), (9,))
+                              (5,), (6,), (7,), (8,), (9,))
 
         class_num = len(train_dataset.classes)
         cluster_len = len(label_clusters)
@@ -302,11 +315,10 @@ def main():
             args, kwargs, args.world_size, args.rank, is_train, new_test_dataset)
     del train_dataset
     del test_dataset
-    #test loader
+    # test loader
 
     # self.test_loader = fl_utils.create_ps_test_loader(
     #     args, kwargs, self.param_server, test_dataset)
-
 
     # pattern_list = ['bias', 'partition', 'random']
     # pattern_idx = args.pattern_idx
@@ -353,8 +365,7 @@ def main():
     #     self.vm_test_loaders = fl_utils.create_segment_federated_loader(
     #         args, kwargs, self.vm_list, is_train, test_dataset)
 
-
-# <--Create Neural Network model instance
+    # <--Create Neural Network model instance
     if args.dataset_type == 'FashionMNIST':
         if args.model_type == 'LR':
             model = fl_models.MNIST_LR_Net().to(device)
@@ -393,7 +404,7 @@ def main():
         model.load_state_dict(torch.load(LOAD_MODEL_PATH))
 
     print("Model and Dataset ok")
-    #model = Net().to(device)
+    # model = Net().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     # global_para  =  model.state_dict().copy()
     # global_para = list(model.state_dict())
@@ -406,14 +417,17 @@ def main():
         dist.recv(temp, src=0)
         global_para[j] = temp.to('cuda')
     global_epoch = torch.tensor(0)
+
+    print('before dist.recv')
     dist.recv(global_epoch, src=0)
-    
+    print('after dist.recv')
+
     Speedp = speed.NetSpeed()
-    # print("Recev global para from the server")
+    print("Recev global para from the server")
     apply_global_para(model, global_para)
 
     for epoch in range(1, args.epochs + 1):
-        print("Epoch %d"%epoch)
+        print("Epoch %d" % epoch)
         # plt.ioff()
         epoch_start_time = time.time()
         train(args, start, model, device, tx2_train_loader, tx2_test_loader, optimizer, epoch, log_out)
@@ -422,13 +436,13 @@ def main():
         global_para = [para[1].data for para in model.named_parameters()]
         # local_para = [para[1].data for para in model.named_parameters()]
 
-        tx_start_KB = Speedp.get_rx_tx(device = 'wlan0', local = 'en')[1]
+        tx_start_KB = Speedp.get_rx_tx(device='lo', local='zh')[1]
         for j in range(len(global_para)):
             dist.send(global_para[j].to('cpu'), dst=0)
-        tx_end_KB = Speedp.get_rx_tx(device = 'wlan0', local = 'en')[1]
+        tx_end_KB = Speedp.get_rx_tx(device='lo', local='zh')[1]
 
-        dist.send(torch.tensor(epoch_end_time-epoch_start_time), dst=0)
-        dist.send(torch.tensor(tx_end_KB-tx_start_KB), dst=0)
+        dist.send(torch.tensor(epoch_end_time - epoch_start_time), dst=0)
+        dist.send(torch.tensor(tx_end_KB - tx_start_KB), dst=0)
         # print("Send para to the server")
         for j in range(len(global_para)):
             temp = global_para[j].to('cpu')
@@ -441,19 +455,19 @@ def main():
         apply_global_para(model, global_para)
         # print("Recev global para from the server")
         # print("Recev global para from the server")
-        #test(args, model, device, test_loader, epoch, self.log_out["model_acc_loss"])
+        # test(args, model, device, test_loader, epoch, self.log_out["model_acc_loss"])
         # plt.close('all')
     # dist.send(torch.Tensor(1), dst=0)
 
     #     plt.figure(1)
-        
+
     #     plt.ion()
     #     plt.plot(train_loss_plot)
     #     plt.title('Train loss')
     #     plt.xlabel('batches(*10)')
     #     plt.ylabel('train loss')
     #     plt.show()
-    
+
     # plt.ioff()
     # plt.figure()
     # plt.plot(test_loss_plot)
@@ -471,4 +485,6 @@ def main():
     # plt.show()
     # if (args.save_model):
     #     torch.save(model.state_dict(), "mnist_cnn.pt")
+
+
 main()

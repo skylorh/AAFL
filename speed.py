@@ -6,8 +6,8 @@ import time
 import re 
 
 TIME = 10 #监视网速的时间间隔
-DEVICE = 'wlan0' #网卡名字
-LOCAL = 'en' #本地语言(有的是英文
+DEVICE = 'lo' #网卡名字
+LOCAL = 'zh' #本地语言(有的是英文
 ALL = False #是否或许所有网卡的网络状态
 
 class NetSpeed():
@@ -38,12 +38,14 @@ class NetSpeed():
            return re.findall(r'NAME="(.+?)"',r)
 
     #调用系统命令ifconfig获取指定网卡名 已上传或者下载的字节大小，转换为kb
-    def ifconfig(self, device = 'wlan0', local = 'en'):
+    def ifconfig(self, device = 'wlan0', local = 'zh'):
        output = subprocess.Popen(['ifconfig', device], stdout=subprocess.PIPE).communicate()[0]
-       output = str(output)
+    #    output = str(output)
+    #    print('output: ', output.decode())
+       output = output.decode()
        if local == 'zh':
-           rx_bytes = re.findall('字节 ([0-9]*) ', output)[0]
-           tx_bytes = re.findall('字节 ([0-9]*) ', output)[1]
+           rx_bytes = re.findall('字节:([0-9]*) ', output)[0]
+           tx_bytes = re.findall('字节:([0-9]*) ', output)[1]
        else:
            rx_bytes = re.findall('bytes ([0-9]*)', output)[0]
            tx_bytes = re.findall('bytes ([0-9]*)', output)[1]
